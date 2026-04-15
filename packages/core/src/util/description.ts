@@ -89,7 +89,7 @@ export const chartTypePrefix = (node: ElaboratedOlliNode, olliSpec: UnitOlliSpec
 };
 export const pluralize = (count: number, noun: string, suffix = 's') => `${count} ${noun}${count !== 1 ? suffix : ''}`;
 export const averageValue = (selection: OlliDataset, field: string) =>
-  Math.round(selection.reduce((a, b) => a + Number(b[field]), 0) / selection.length);
+  selection.reduce((a, b) => a + Number(b[field]), 0) / selection.length;
 
 export function ordinal_suffix_of(i: number) {
   // st, nd, rd, th

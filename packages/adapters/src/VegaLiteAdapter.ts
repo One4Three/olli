@@ -63,6 +63,37 @@ const inferRegionField = (data: OlliDataset, fields: { field: string; type?: str
   return fields[0]?.field;
 };
 
+const inferGeoHierarchy = (data: OlliDataset, fields: { field: string; type?: string }[]) => {
+  if (!data.length) {
+    return null;
+  }
+
+  const keys = Object.keys(data[0]);
+  const scalarKeys = keys.filter((key) => data.every((datum) => isScalarValue(datum[key])));
+  const stateField = ['state', 'state_name', 'state_id'].find((key) => scalarKeys.includes(key));
+  const countyField = ['county', 'county_name', 'county_id'].find((key) => scalarKeys.includes(key));
+
+  if (stateField && countyField && stateField !== countyField) {
+    return { stateField, regionField: countyField };
+  }
+
+  return null;
+};
+
+const ensureNominalField = (olliSpec: UnitOlliSpec, field: string) => {
+  const fieldDef = olliSpec.fields.find((f) => f.field === field);
+  if (fieldDef) {
+    fieldDef.type = 'nominal';
+    return;
+  }
+
+  olliSpec.fields.push({
+    field,
+    label: field,
+    type: 'nominal',
+  });
+};
+
 /**
  * Adapter to deconstruct Vega-Lite visualizations into an {@link OlliVisSpec}
  * @param spec The Vega-Lite Spec that rendered the visualization
@@ -202,18 +233,15 @@ function adaptUnitSpec(scene: SceneGroup, spec: TopLevelUnitSpec<any>, data: Oll
   }
 
   if (olliSpec.mark === 'geoshape') {
+    const geoHierarchy = inferGeoHierarchy(olliSpec.data, olliSpec.fields);
+    if (geoHierarchy) {
+      ensureNominalField(olliSpec, geoHierarchy.stateField);
+      olliSpec.structure = [{ groupby: geoHierarchy.stateField, children: [] }];
+    }
+
     const regionField = inferRegionField(olliSpec.data, olliSpec.fields);
-    if (regionField) {
-      const fieldDef = olliSpec.fields.find((f) => f.field === regionField);
-      if (fieldDef) {
-        fieldDef.type = 'nominal';
-      } else {
-        olliSpec.fields.push({
-          field: regionField,
-          label: regionField,
-          type: 'nominal',
-        });
-      }
+    if (regionField && !olliSpec.structure) {
+      ensureNominalField(olliSpec, regionField);
       olliSpec.structure = [{ groupby: regionField, children: [] }];
     }
   }
