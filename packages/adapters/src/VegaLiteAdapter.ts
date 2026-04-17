@@ -94,6 +94,38 @@ const ensureNominalField = (olliSpec: UnitOlliSpec, field: string) => {
   });
 };
 
+const geoFieldLabel = (field: string) => {
+  const labelMap = {
+    county_name: 'County',
+    county: 'County',
+    county_id: 'County ID',
+    state_name: 'State',
+    state: 'State',
+    state_id: 'State ID',
+  };
+  return labelMap[field] || field.replace(/_/g, ' ');
+};
+
+const ensureGeoScalarFields = (olliSpec: UnitOlliSpec) => {
+  if (!olliSpec.data.length) {
+    return;
+  }
+
+  const keys = Object.keys(olliSpec.data[0]).filter((key) =>
+    olliSpec.data.every((datum) => isScalarValue(datum[key]))
+  );
+
+  keys.forEach((field) => {
+    if (!olliSpec.fields.find((f) => f.field === field)) {
+      olliSpec.fields.push({
+        field,
+        label: geoFieldLabel(field),
+        type: typeInference(olliSpec.data, field),
+      });
+    }
+  });
+};
+
 /**
  * Adapter to deconstruct Vega-Lite visualizations into an {@link OlliVisSpec}
  * @param spec The Vega-Lite Spec that rendered the visualization
@@ -233,6 +265,8 @@ function adaptUnitSpec(scene: SceneGroup, spec: TopLevelUnitSpec<any>, data: Oll
   }
 
   if (olliSpec.mark === 'geoshape') {
+    ensureGeoScalarFields(olliSpec);
+
     const geoHierarchy = inferGeoHierarchy(olliSpec.data, olliSpec.fields);
     if (geoHierarchy) {
       ensureNominalField(olliSpec, geoHierarchy.stateField);

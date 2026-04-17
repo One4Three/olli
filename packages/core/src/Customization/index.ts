@@ -429,6 +429,12 @@ export function nodeToDescription(
 
   function instructions(node: ElaboratedOlliNode): string {
     switch (node.nodeType) {
+      case 'view':
+        if (isChoroplethMap(olliSpec)) {
+          const selection = selectionTest(dataset, node.fullPredicate);
+          return selection.length ? 'press t to open table' : '';
+        }
+        return '';
       case 'filteredData':
       case 'other':
         if ('predicate' in node) {
@@ -443,7 +449,7 @@ export function nodeToDescription(
 
   const nodeTypeToTokens = new Map<OlliNodeType, string[]>([
     ['root', ['name', 'type', 'size', 'children', 'level']],
-    ['view', ['index', 'type', 'name', 'children', 'aggregate', 'level']],
+    ['view', ['index', 'type', 'name', 'children', 'aggregate', 'level', 'instructions']],
     ['xAxis', ['name', 'type', 'data', 'parent', 'aggregate', 'level']],
     ['yAxis', ['name', 'type', 'data', 'parent', 'aggregate', 'level']],
     ['legend', ['name', 'type', 'data', 'parent', 'aggregate', 'level']],

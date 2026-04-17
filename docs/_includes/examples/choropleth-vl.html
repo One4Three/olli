@@ -54,7 +54,7 @@ let states = [
   { "state_id": "72", "state": "Puerto Rico" }
 ];
 
-let spec = {
+const baseSpec = {
   "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
   "title": "Choropleth of Unemployment Rate per State",
   "width": 650,
@@ -94,6 +94,18 @@ let spec = {
         "key": "state_id",
         "fields": ["state"]
       }
+    },
+    {
+      "lookup": "county_id",
+      "from": {
+        "data": {
+          "url": "https://cdn.jsdelivr.net/gh/dbreunig/county-state-fips-csvs@master/county_fips.csv",
+          "format": { "type": "csv" }
+        },
+        "key": "code",
+        "fields": ["name"]
+      },
+      "as": ["county_name"]
     }
   ],
   "projection": {
@@ -114,6 +126,11 @@ let spec = {
         "title": "State"
       },
       {
+        "field": "county_name",
+        "type": "nominal",
+        "title": "County"
+      },
+      {
         "field": "county_id",
         "type": "nominal",
         "title": "County ID"
@@ -127,17 +144,73 @@ let spec = {
   }
 };
 
-let vegaSpec = vegaLite.compile(spec).spec;
-const runtime = vega.parse(vegaSpec);
-const vegaRender = document.getElementById("Visualization-Vega-Lite");
-let view = new vega.View(runtime)
-  .logLevel(vega.Warn)
-  .initialize(vegaRender)
-  .renderer("svg")
-  .hover()
-  .run();
+const buildOverlaySpec = (focusedPredicate) => {
+  return {
+    ...baseSpec,
+    "transform": [...baseSpec.transform, { "filter": focusedPredicate }],
+    "mark": {
+      "type": "geoshape",
+      "stroke": "#111",
+      "strokeWidth": 2
+    },
+    "encoding": {
+      ...baseSpec.encoding,
+      "opacity": { "value": 1 }
+    }
+  };
+};
 
-OlliAdapters.VegaLiteAdapter(spec).then((olliVisSpec) => {
-  document.getElementById("AccessibilityTree-Vega-Lite").append(olli(olliVisSpec));
+const vegaRender = document.getElementById("Visualization-Vega-Lite");
+vegaRender.style.position = "relative";
+const baseLayer = document.createElement("div");
+const overlayLayer = document.createElement("div");
+overlayLayer.style.position = "absolute";
+overlayLayer.style.inset = "0";
+overlayLayer.style.pointerEvents = "none";
+vegaRender.append(baseLayer, overlayLayer);
+let baseView;
+let overlayView;
+
+const renderBaseChart = () => {
+  const vegaSpec = vegaLite.compile(baseSpec).spec;
+  const runtime = vega.parse(vegaSpec);
+  baseView = new vega.View(runtime)
+    .logLevel(vega.Warn)
+    .initialize(baseLayer)
+    .renderer("svg")
+    .hover()
+    .run();
+};
+
+const renderOverlay = (focusedPredicate) => {
+  if (overlayView) {
+    overlayView.finalize();
+    overlayView = undefined;
+  }
+  overlayLayer.replaceChildren();
+  if (!focusedPredicate || !("and" in focusedPredicate) || focusedPredicate.and.length === 0) {
+    return;
+  }
+  const vegaSpec = vegaLite.compile(buildOverlaySpec(focusedPredicate)).spec;
+  const runtime = vega.parse(vegaSpec);
+  overlayView = new vega.View(runtime)
+    .logLevel(vega.Warn)
+    .initialize(overlayLayer)
+    .renderer("svg")
+    .hover()
+    .run();
+};
+
+renderBaseChart();
+
+OlliAdapters.VegaLiteAdapter(baseSpec).then((olliVisSpec) => {
+  document.getElementById("AccessibilityTree-Vega-Lite").append(
+    olli(olliVisSpec, {
+      onTextNavPred: (predicate) => {
+        const hasPredicate = "and" in predicate && predicate.and.length > 0;
+        renderOverlay(hasPredicate ? predicate : undefined);
+      }
+    })
+  );
 });
 </script>
